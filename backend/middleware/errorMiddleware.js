@@ -1,3 +1,4 @@
 export default function errorMiddleware(error, request, response, next) {
-  next(error)
+  console.error(error)
+  response.status(error.statusCode ?? 500).json({ message: error.message ?? 'Internal server error' })
 }
