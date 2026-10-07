@@ -138,16 +138,50 @@ const requirements = [['REQ-104', 'User authentication', 'High', 'In progress', 
 
 function AuthPage({ mode }) {
   const [showPassword, setShowPassword] = useState(false)
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
   const isRegister = mode === 'register'; const isForgot = mode === 'forgot'; const isReset = mode === 'reset'
-  const handleSubmit = (event) => {
-    event.preventDefault()
-    const destination = isForgot ? '/login' : '/dashboard'
+
+  const navigate = (destination) => {
     window.history.pushState({}, '', destination)
     window.dispatchEvent(new PopStateEvent('popstate'))
   }
-  return <div className="auth-page"><a className="auth-brand" href="/"><span className="brand-mark">DF</span><strong>DevFlow AI</strong></a><div className="auth-layout"><div className="auth-pitch"><p className="app-kicker">DEVELOPER WORKFLOW INTELLIGENCE</p><h1>{isRegister ? 'Give your team a clearer path to ship.' : 'Welcome back to your delivery workspace.'}</h1><p>Connect requirements, code, tests, and releases in one calm, traceable workspace.</p><div className="auth-proof"><span>78%</span><small>average project visibility</small></div></div><form className="auth-card" onSubmit={handleSubmit}><div className="auth-card-heading"><p className="app-kicker">{isForgot || isReset ? 'ACCOUNT RECOVERY' : 'DEVFLOW WORKSPACE'}</p><h2>{isRegister ? 'Create your account' : isForgot ? 'Reset your password' : isReset ? 'Choose a new password' : 'Sign in to DevFlow'}</h2><p>{isForgot ? 'We will send a secure reset link to your inbox.' : isReset ? 'Use a strong password you have not used before.' : 'Continue where your team left off.'}</p></div>{isRegister && <label>Full name<input placeholder="Mathan Kumar" /></label>}{!isReset && <label>Email address<input type="email" placeholder="you@company.com" /></label>}{!isForgot && <label>{isReset ? 'New password' : 'Password'}<span className="input-wrap"><input type={showPassword ? 'text' : 'password'} placeholder="••••••••" /><button type="button" onClick={() => setShowPassword(!showPassword)}>{showPassword ? 'Hide' : 'Show'}</button></span></label>}{(isRegister || isReset) && <label>Confirm password<input type="password" placeholder="••••••••" /></label>}{isRegister && <label className="check-row"><input type="checkbox" /> I agree to the Terms and Privacy Policy</label>}{!isRegister && !isForgot && !isReset && <div className="form-meta"><label className="check-row"><input type="checkbox" /> Remember me</label><a href="/forgot-password">Forgot password?</a></div>}<button className="app-button primary full" type="submit">{isForgot ? 'Send reset link' : isReset ? 'Reset password' : isRegister ? 'Create account' : 'Login'}</button>{isForgot && <p className="form-note">Back to <a href="/login">login</a></p>}{!isForgot && !isReset && <p className="form-note">{isRegister ? 'Already have an account?' : "Don't have an account?"} <a href={isRegister ? '/login' : '/register'}>{isRegister ? 'Sign in' : 'Create one'}</a></p>}</form></div></div>
-}
 
+  const handleSubmit = async (event) => {
+    event.preventDefault()
+    setError('')
+    if (isForgot || isReset) {
+      setError('Password recovery will be enabled after email delivery is configured.')
+      return
+    }
+    const form = new FormData(event.currentTarget)
+    const payload = {
+      name: String(form.get('name') || '').trim(),
+      email: String(form.get('email') || '').trim(),
+      password: String(form.get('password') || ''),
+    }
+    if (isRegister && form.get('password') !== form.get('confirmPassword')) {
+      setError('Passwords do not match.')
+      return
+    }
+    setLoading(true)
+    try {
+      const endpoint = isRegister ? '/api/auth/register' : '/api/auth/login'
+      const response = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(data.message || 'Unable to complete authentication.')
+      localStorage.setItem('devflow_token', data.token)
+      localStorage.setItem('devflow_user', JSON.stringify(data.user))
+      navigate('/dashboard')
+    } catch (requestError) {
+      setError(requestError.message || 'Unable to connect to the API. Start the backend and MongoDB.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return <div className="auth-page"><a className="auth-brand" href="/"><span className="brand-mark">DF</span><strong>DevFlow AI</strong></a><div className="auth-layout"><div className="auth-pitch"><p className="app-kicker">DEVELOPER WORKFLOW INTELLIGENCE</p><h1>{isRegister ? 'Give your team a clearer path to ship.' : 'Welcome back to your delivery workspace.'}</h1><p>Connect requirements, code, tests, and releases in one calm, traceable workspace.</p><div className="auth-proof"><span>78%</span><small>average project visibility</small></div></div><form className="auth-card" onSubmit={handleSubmit}><div className="auth-card-heading"><p className="app-kicker">{isForgot || isReset ? 'ACCOUNT RECOVERY' : 'DEVFLOW WORKSPACE'}</p><h2>{isRegister ? 'Create your account' : isForgot ? 'Reset your password' : isReset ? 'Choose a new password' : 'Sign in to DevFlow'}</h2><p>{isForgot ? 'We will send a secure reset link to your inbox.' : isReset ? 'Use a strong password you have not used before.' : 'Continue where your team left off.'}</p></div>{isRegister && <label>Full name<input name="name" required placeholder="Mathan Kumar" /></label>}{!isReset && <label>Email address<input name="email" type="email" required placeholder="you@company.com" /></label>}{!isForgot && <label>{isReset ? 'New password' : 'Password'}<span className="input-wrap"><input name="password" type={showPassword ? 'text' : 'password'} required={!isForgot} minLength={8} placeholder="••••••••" /><button type="button" data-action="toggle-password" onClick={() => setShowPassword(!showPassword)}>{showPassword ? 'Hide' : 'Show'}</button></span></label>}{(isRegister || isReset) && <label>Confirm password<input name="confirmPassword" type="password" required minLength={8} placeholder="••••••••" /></label>}{isRegister && <label className="check-row"><input type="checkbox" required /> I agree to the Terms and Privacy Policy</label>}{!isRegister && !isForgot && !isReset && <div className="form-meta"><label className="check-row"><input type="checkbox" /> Remember me</label><a href="/forgot-password">Forgot password?</a></div>}{error && <p role="alert" className="form-error">{error}</p>}<button className="app-button primary full" type="submit" disabled={loading}>{loading ? 'Please wait…' : isForgot ? 'Send reset link' : isReset ? 'Reset password' : isRegister ? 'Create account' : 'Login'}</button>{isForgot && <p className="form-note">Back to <a href="/login">login</a></p>}{!isForgot && !isReset && <p className="form-note">{isRegister ? 'Already have an account?' : "Don't have an account?"} <a href={isRegister ? '/login' : '/register'}>{isRegister ? 'Sign in' : 'Create one'}</a></p>}</form></div></div>
+}
 function Metric({ label, value, detail, tone = '' }) { return <div className="metric"><span>{label}</span><strong className={tone}>{value}</strong><small>{detail}</small></div> }
 function PanelTitle({ title, action, href }) { return <div className="panel-title"><h3>{title}</h3>{action && <a href={href}>{action} →</a>}</div> }
 function AppSidebar({ path }) { return <aside className="app-sidebar"><a href="/" className="app-logo"><span className="brand-mark">DF</span><span><strong>DevFlow</strong><small>AI WORKSPACE</small></span></a><p className="sidebar-label">Workspace</p><nav>{appNavigation.map(([label, href, icon]) => <a key={href} className={path === href ? 'active' : ''} href={href}><span>{icon}</span>{label}{label === 'Notifications' && <b>3</b>}</a>)}</nav><p className="sidebar-label">Manage</p><nav><a href="/settings"><span>⚙</span>Settings</a><a href="/help"><span>?</span>Help center</a></nav><div className="sidebar-user"><span className="avatar">MK</span><span><strong>Mathan Kumar</strong><small>Product lead</small></span><span>•••</span></div></aside> }
