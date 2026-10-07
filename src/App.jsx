@@ -170,7 +170,49 @@ function Workspace({ path }) { const segment = path.slice(1).split('/')[0] || 'd
 
 function App() {
   const [path, setPath] = useState(window.location.pathname)
-  useEffect(() => { const handlePopState = () => setPath(window.location.pathname); window.addEventListener('popstate', handlePopState); return () => window.removeEventListener('popstate', handlePopState) }, [])
+  useEffect(() => {
+    const handlePopState = () => setPath(window.location.pathname)
+    const handleClick = (event) => {
+      const anchor = event.target.closest('a')
+      if (anchor) {
+        const href = anchor.getAttribute('href')
+        if (href && href.startsWith('/') && !anchor.hasAttribute('download')) {
+          event.preventDefault()
+          window.history.pushState({}, '', href)
+          window.dispatchEvent(new PopStateEvent('popstate'))
+        } else if (href === '#') {
+          event.preventDefault()
+        }
+      }
+      const button = event.target.closest('button')
+      if (button && button.type !== 'submit' && !button.disabled) {
+        const label = button.textContent.trim()
+        if (label && !button.dataset.action) {
+          window.dispatchEvent(new CustomEvent('devflow:toast', { detail: label.replace(/^[^A-Za-z]+/, '') + ' is ready for action.' }))
+        }
+      }
+    }
+    const handleToast = (event) => {
+      let toast = document.getElementById('devflow-toast')
+      if (!toast) {
+        toast = document.createElement('div')
+        toast.id = 'devflow-toast'
+        toast.style.cssText = 'position:fixed;right:24px;bottom:24px;z-index:9999;padding:12px 16px;border-radius:10px;background:#111827;color:white;box-shadow:0 10px 30px rgba(0,0,0,.2);font-size:14px'
+        document.body.appendChild(toast)
+      }
+      toast.textContent = event.detail
+      clearTimeout(window.__devflowToast)
+      window.__devflowToast = setTimeout(() => toast.remove(), 2200)
+    }
+    window.addEventListener('popstate', handlePopState)
+    document.addEventListener('click', handleClick)
+    window.addEventListener('devflow:toast', handleToast)
+    return () => {
+      window.removeEventListener('popstate', handlePopState)
+      document.removeEventListener('click', handleClick)
+      window.removeEventListener('devflow:toast', handleToast)
+    }
+  }, [])
   if (path === '/login') return <AuthPage mode="login" />
   if (path === '/register') return <AuthPage mode="register" />
   if (path === '/forgot-password') return <AuthPage mode="forgot" />
